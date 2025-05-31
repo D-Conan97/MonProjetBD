@@ -1,4 +1,3 @@
-
 import sqlite3
 import streamlit as st
 import pandas as pd
@@ -6,6 +5,68 @@ import pandas as pd
 # Connexion 
 def get_connection():
     return sqlite3.connect("hotel.db", check_same_thread=False)
+
+# Initialisation de la base et des tables
+def init_db():
+    conn = get_connection()
+    cursor = conn.cursor()
+    
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS Client (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            nom_complet TEXT,
+            adresse TEXT,
+            ville TEXT,
+            code_postal INTEGER,
+            email TEXT,
+            telephone TEXT
+        )
+    """)
+    
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS Chambre (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            numero TEXT,
+            type TEXT,
+            prix REAL
+        )
+    """)
+    
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS Reservation (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            date_debut TEXT,
+            date_fin TEXT,
+            id_client INTEGER,
+            FOREIGN KEY(id_client) REFERENCES Client(id)
+        )
+    """)
+    
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS Reservation_Chambre (
+            id_reservation INTEGER,
+            id_chambre INTEGER,
+            PRIMARY KEY (id_reservation, id_chambre),
+            FOREIGN KEY(id_reservation) REFERENCES Reservation(id),
+            FOREIGN KEY(id_chambre) REFERENCES Chambre(id)
+        )
+    """)
+    
+    # Insérer des chambres de test si table vide
+    cursor.execute("SELECT COUNT(*) FROM Chambre")
+    if cursor.fetchone()[0] == 0:
+        chambres_test = [
+            ("101", "Simple", 50.0),
+            ("102", "Double", 80.0),
+            ("201", "Suite", 150.0)
+        ]
+        cursor.executemany("INSERT INTO Chambre (numero, type, prix) VALUES (?, ?, ?)", chambres_test)
+    
+    conn.commit()
+    conn.close()
+
+# Appel initial pour créer la base
+init_db()
 
 # Consultation de tables
 def show_table(name):
@@ -41,11 +102,11 @@ def add_reservation():
     st.subheader("Ajouter une réservation")
     conn = get_connection()
     clients = pd.read_sql_query("SELECT id, nom_complet FROM Client", conn)
-    chambres = pd.read_sql_query("SELECT id FROM Chambre", conn)
+    chambres = pd.read_sql_query("SELECT id, numero FROM Chambre", conn)
 
     with st.form("form_reservation"):
         client_id = st.selectbox("Client", clients["id"], format_func=lambda i: clients.loc[clients.id==i, "nom_complet"].values[0])
-        chambre_id = st.selectbox("Chambre", chambres["id"])
+        chambre_id = st.selectbox("Chambre", chambres["id"], format_func=lambda i: chambres.loc[chambres.id==i, "numero"].values[0])
         date_debut = st.date_input("Date début")
         date_fin = st.date_input("Date fin")
         submitted = st.form_submit_button("Réserver")
